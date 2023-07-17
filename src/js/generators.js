@@ -220,3 +220,24 @@ export function getPositionsToMove(char, index, characterList) {
   }
   return positionsToMove;
 }
+
+export function createCharacter(level, type) {
+  if (type === 'bowman') {
+    return new Bowman(level, 'bowman');
+  }
+  if (type === 'swordsman') {
+    return new Swordsman(level, 'swordsman');
+  }
+  if (type === 'magician') {
+    return new Magician(level, 'magician');
+  }
+  if (type === 'undead') {
+    return new Undead(level, 'undead');
+  }
+  if (type === 'vampire') {
+    return new Vampire(level, 'vampire');
+  }
+  if (type === 'daemon') {
+    return new Daemon(level, 'daemon');
+  }
+}

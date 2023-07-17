@@ -1,11 +1,12 @@
 import themes from './themes';
 import cursor from './cursors';
 import generateTeam from './generators';
-import { generatePosition, getPositionsToAttack, getPositionsToMove } from './generators';
+import { generatePosition, getPositionsToAttack, getPositionsToMove, createCharacter } from './generators';
 import Team from './Team';
 import PositionedCharacter from './PositionedCharacter';
 import GameState from './GameState';
 import GamePlay from './GamePlay';
+import Bowman from './characters/Bowman';
 
 export default class GameController {
   
@@ -13,8 +14,6 @@ export default class GameController {
     this.gamePlay = gamePlay;
     this.stateService = stateService;
     this.gameState = new GameState();
-    this.playerTeam = [];
-    this.computerTeam = [];
     this.characterList = [];
   }
 
@@ -51,14 +50,15 @@ export default class GameController {
           damage = Math.floor(damage);
           target.health -= damage;
           if (target.health < 1) {
-            this.computerTeam.length -= 1;
+            // this.computerTeam.length -= 1;
             this.characterList = this.characterList.filter(item => item.position !== index);
+
           } 
           this.gamePlay.redrawPositions(this.characterList);
-          if (this.computerTeam.length === 0) {
+          if (this.teamSize('computer') === 0) {
             if (this.gameState.level === 4) {
               this.gameState.running = false;
-              GamePlay.showMessage('Победа');
+              GamePlay.showMessage('Победа ваша');
               return;
             }
             this.gameState.level += 1;
@@ -144,8 +144,8 @@ export default class GameController {
     state.turn = this.gameState.turn;
     state.selectedCell = this.gameState.selectedCell;
     state.selectedCharacter = this.gameState.selectedCharacter;
-    state.playerTeam = this.playerTeam;
-    state.computerTeam = this.computerTeam;
+    // state.playerTeam = this.playerTeam;
+    // state.computerTeam = this.computerTeam;
     state.characterList = this.characterList;
     this.stateService.save(state);
     GamePlay.showMessage('Game is saved');
@@ -163,9 +163,17 @@ export default class GameController {
         this.gamePlay.selectCell(this.gameState.selectedCell, 'yellow');
       }
       this.gameState.selectedCharacter = state.selectedCharacter;
-      this.playerTeam = state.playerTeam;
-      this.computerTeam = state.computerTeam;
-      this.characterList = state.characterList;
+      this.characterList = []; // обнуляем массив состояний игроков
+      // вводим временный массив чтобы не потерять сохраненный
+      const tempArr = state.characterList;
+      tempArr.map(char => {
+        const character = createCharacter(char.character.level, char.character.type);
+        character.attack = char.character.attack;
+        character.defence = char.character.defence;
+        character.health = char.character.health;
+        const positionedCharacter = new PositionedCharacter(character, char.position);
+        this.characterList.push(positionedCharacter);
+      });
       this.drawingPlan(this.gameState.level);
       this.gamePlay.redrawPositions(this.characterList);
       GamePlay.showMessage('Игра загружена');
@@ -221,14 +229,14 @@ export default class GameController {
               this.characterList.shift();
         }
       }
-      const number = 4 - this.playerTeam.length;
+      const number = this.gameState.level + 1 - this.playerTeam.length;
       if (number) {
         const team = generateTeam(['Bowman', 'Swordsman', 'Magician'], 1, number);
         this.playerTeam = this.playerTeam.concat(...team);
       }
     }
     if (player === 'computer') {
-      const arr = this.characterList; // временный массив
+      const arr = this.characterList.map(item => item); // временный массив
       this.computerTeam = [];
       for (let char of arr) {
         if (char.character.type === 'undead' ||
@@ -238,7 +246,7 @@ export default class GameController {
               this.characterList.shift();
         }
       }
-      const number = 4 - this.computerTeam.length;
+      const number = this.gameState.level + 1 - this.computerTeam.length;
       if (number) {
         const team = generateTeam(['Undead', 'Daemon', 'Vampire'], 1, number);
         this.computerTeam = this.computerTeam.concat(team);
@@ -284,6 +292,30 @@ export default class GameController {
     return `🎖${character.level} ⚔${character.attack} 🛡${character.defence} ❤${character.health}`;
   }
 
+  teamSize(player) {
+    let size = 0;
+    if (player === 'player') {
+      for (const char of this.characterList) {
+        if (char.character.type === 'bowman' ||
+            char.character.type === 'swordsman' ||
+            char.character.type === 'magician') {
+          size += 1;
+        }
+      }
+      return size;
+    }
+    if (player === 'computer') {
+      for (const char of this.characterList) {
+        if (char.character.type === 'undead' ||
+            char.character.type === 'vampire' ||
+            char.character.type === 'daemon') {
+          size += 1;
+        }
+      }
+      return size;
+    }
+  }
+
   enemyTurn() { // ход компьютера
     const playerTeam = [];
     const computerTeam = [];
@@ -291,17 +323,20 @@ export default class GameController {
       damage: 0
     };
     for (let char of this.characterList) {
-      if (char.character.type === 'bowman' ||
-          char.character.type === 'swordsman' ||
-          char.character.type === 'magician') {
-            playerTeam.push(char);
+      if (char.character.type === 'bowman' 
+      || char.character.type === 'swordsman'
+      || char.character.type === 'magician') {
+        playerTeam.push(char);
       }
-      if (char.character.type === 'undead' ||
-          char.character.type === 'vampire' ||
-          char.character.type === 'daemon') {
+      if (char.character.type === 'undead'
+      || char.character.type === 'vampire'
+      || char.character.type === 'daemon') {
+        computerTeam.push(char);
+      }
+      for (const char of computerTeam) {
             const attacker = char.character;
             const attackerPosition = char.position;
-            computerTeam.push(char);
+            
             const positionsToAttack = getPositionsToAttack(char.character.type, char.position);
             for (let char of playerTeam) {
               if (positionsToAttack.indexOf(char.position) >= 0) {
@@ -324,7 +359,6 @@ export default class GameController {
         this.gameState.selectedCell = null;
         this.gameState.selectedCharacter = '';
         this.gamePlay.deselectCell(target.position);
-        this.playerTeam.length -= 1;
         this.characterList = this.characterList.filter(item => item.position !== target.position);
       }
       this.gameState.running = false;
@@ -333,22 +367,27 @@ export default class GameController {
         this.gameState.running = true;
         this.gameState.changeTurn();
         this.gamePlay.redrawPositions(this.characterList);
+        if(this.teamSize('player') === 0) {
+          if (this.gameState.level === 4) {
+            this.gameState.running = false;
+            GamePlay.showMessage('Победа компьютера');
+            return;
+          }
+          this.gameState.level += 1;
+          this.levelUp();
+          this.gameState.selectedCell = null;
+          this.gameState.selectedCharacter = '';
+          this.startNextLevel();
+        }
       }, 100));
-     
-      // this.gamePlay.deselectCell(this.gameState.selectedCell);
-      // this.gameState.selectedCell = 64;
-      if(playerTeam.length = 0) {
-        this.startNextLevel();
-      }
+      
       return;
     }  
-    let rnd = Math.floor(Math.random() * this.computerTeam.length);
+    let rnd = Math.floor(Math.random() * computerTeam.length);
     const char = computerTeam[rnd];
     const positionsToMove = getPositionsToMove(char.character.type, char.position, this.characterList);
     rnd = Math.floor(Math.random() * positionsToMove.length);
     char.position = positionsToMove[rnd];
     this.gamePlay.redrawPositions(this.characterList);
-    console.log(positionsToMove);
-
   }
 }

@@ -5,7 +5,7 @@ HELP.md
 doc
 
 .npmrc
-dist
+# dist
 node_modules
 coverage
 
